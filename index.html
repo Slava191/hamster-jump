@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+   <meta charset="UTF-8">
+   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+   <title>Simple Jump Game</title>
+   <style>
+       body {
+           margin: 0;
+           overflow: hidden;
+           background: #fafafa;
+       }
+       canvas {
+           display: block;
+           margin: auto;
+           background: #87CEEB;
+       }
+       #gameOver {
+           display: none;
+           position: absolute;
+           top: 20%;
+           left: 50%;
+           transform: translate(-50%, -50%);
+           text-align: center;
+           background-color: rgba(0, 0, 0, 0.8);
+           color: white;
+           padding: 20px;
+           border-radius: 10px;
+       }
+   </style>
+</head>
+<body>
+   <canvas id="gameCanvas" width="800" height="400"></canvas>
+   <div id="gameOver">
+       <h1>Game Over</h1>
+       <p id="finalScore"></p>
+       <button onclick="restartGame()">Start New Game</button>
+   </div>
+   <script>
+       // Game Config
+       const GAME_SPEED = 3.5;
+       const JUMP_POWER = -15;
+       const GRAVITY = 0.4;
+       const INITIAL_LIVES = 1;
+       const OBSTACLE_SIZE = 50;
+       const PLAYER_SIZE = 50;
+       const GROUND_HEIGHT = 30;
+       const CANVAS_WIDTH = 800;
+       const CANVAS_HEIGHT = 400;
+       const MIN_OBSTACLE_INTERVAL = 1500;
+       const OBSTACLE_SPAWN_PROB = 0.01; // 1% chance per frame
+       const MIN_COIN_INTERVAL = 100;
+       const COIN_SPAWN_PROB = 0.01; // 1% chance per frame
+       const MIN_COIN_HEIGHT = 100; // Minimum height for coins
+       const MAX_COIN_HEIGHT = 250; // Maximum height for coins
+
+       const canvas = document.getElementById("gameCanvas");
+       const ctx = canvas.getContext("2d");
+
+       const player = {
+           x: 150,
+           y: CANVAS_HEIGHT - PLAYER_SIZE - GROUND_HEIGHT,
+           size: PLAYER_SIZE,
+           dy: 0,
+           gravity: GRAVITY,
+           jumpPower: JUMP_POWER,
+           lives: INITIAL_LIVES,
+           onGround: false,
+       };
+
+       const obstacles = [];
+       const coins = [];
+       const ui = { score: 0, lives: INITIAL_LIVES, distance: 0 };
+       let gameSpeed = GAME_SPEED;
+       let lastObstacleTime = 0;
+       let lastCoinTime = 0;
+
+       const hamsterImage = new Image();
+       hamsterImage.src = 'assets/hamster.png';
+
+       let gameOverEl = document.getElementById("gameOver");
+       let finalScoreEl = document.getElementById("finalScore");
+
+       function spawnObstacle() {
+           const x = CANVAS_WIDTH;
+           const y = CANVAS_HEIGHT - OBSTACLE_SIZE - GROUND_HEIGHT;
+           obstacles.push({ x, y, size: OBSTACLE_SIZE });
+       }
+
+       function spawnCoin() {
+           const x = CANVAS_WIDTH;
+           const y = MIN_COIN_HEIGHT + Math.random() * (MAX_COIN_HEIGHT - MIN_COIN_HEIGHT);
+           const size = 10;
+           coins.push({ x, y, size, color: 'yellow' });
+       }
+
+       function jump() {
+           if (player.onGround) {
+               player.dy = player.jumpPower;
+               player.onGround = false;
+           }
+       }
+
+       document.addEventListener('keydown', (e) => {
+           if (e.code === 'Space') {
+               jump();
+           }
+       });
+
+       canvas.addEventListener('click', () => {
+           jump();
+       });
+
+       function update() {
+           player.dy += player.gravity;
+           player.y += player.dy;
+
+           if (player.y >= CANVAS_HEIGHT - PLAYER_SIZE - GROUND_HEIGHT) {
+               player.y = CANVAS_HEIGHT - PLAYER_SIZE - GROUND_HEIGHT;
+               player.dy = 0;
+               player.onGround = true;
+           }
+
+           obstacles.forEach((ob, index) => {
+               ob.x -= gameSpeed;
+
+               if (ob.x + ob.size < 0) {
+                   obstacles.splice(index, 1);
+               }
+
+               if (player.x < ob.x + ob.size &&
+                   player.x + player.size > ob.x &&
+                   player.y < ob.y + ob.size &&
+                   player.y + player.size > ob.y) {
+                       ui.lives -= 1;
+                       obstacles.splice(index, 1);
+
+                       if (ui.lives === 0) {
+                           endGame();
+                       }
+               }
+           });
+
+           coins.forEach((coin, index) => {
+               coin.x -= gameSpeed;
+
+               if (coin.x + coin.size < 0) {
+                   coins.splice(index, 1);
+               }
+
+               if (player.x < coin.x + coin.size &&
+                   player.x + player.size > coin.x &&
+                   player.y < coin.y + coin.size &&
+                   player.y + player.size > coin.y) {
+                       ui.score += 10;
+                       coins.splice(index, 1);
+               }
+           });
+
+           if (Date.now() - lastObstacleTime > MIN_OBSTACLE_INTERVAL && Math.random() < OBSTACLE_SPAWN_PROB) {
+               spawnObstacle();
+               lastObstacleTime = Date.now();
+           }
+
+           if (Date.now() - lastCoinTime > MIN_COIN_INTERVAL && Math.random() < COIN_SPAWN_PROB) {
+               spawnCoin();
+               lastCoinTime = Date.now();
+           }
+
+           if (gameSpeed < 6) {
+               gameSpeed += 0.001;
+           }
+
+           ui.distance += gameSpeed / 60;
+       }
+
+       function draw() {
+           ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+           // Draw ground
+           ctx.fillStyle = '#8B4513';
+           ctx.fillRect(0, CANVAS_HEIGHT - GROUND_HEIGHT, CANVAS_WIDTH, GROUND_HEIGHT);
+
+           // Draw player
+           ctx.drawImage(hamsterImage, player.x, player.y, player.size, player.size);
+
+           // Draw obstacles
+           obstacles.forEach(ob => {
+               ctx.fillStyle = 'red';
+               ctx.fillRect(ob.x, ob.y, ob.size, ob.size);
+           });
+
+           // Draw coins
+           coins.forEach(coin => {
+               ctx.fillStyle = coin.color;
+               ctx.beginPath();
+               ctx.arc(coin.x, coin.y, coin.size, 0, Math.PI * 2);
+               ctx.fill();
+           });
+
+           // Draw UI
+           ctx.fillStyle = 'black';
+           ctx.font = '20px Arial';
+           ctx.fillText(`Score: ${ui.score}`, 10, 20);
+           ctx.fillText(`Lives: ${ui.lives}`, 10, 40);
+           ctx.fillText(`Distance: ${Math.floor(ui.distance)}m`, 10, 60);
+       }
+
+       function loop() {
+           if (ui.lives > 0) {
+               update();
+               draw();
+               requestAnimationFrame(loop);
+           }
+       }
+
+       function endGame() {
+           gameOverEl.style.display = 'block';
+           finalScoreEl.textContent = `You traveled ${Math.floor(ui.distance)} meters and collected ${ui.score} points.`;
+       }
+
+       function restartGame() {
+           gameOverEl.style.display = 'none';
+           player.y = CANVAS_HEIGHT - PLAYER_SIZE - GROUND_HEIGHT;
+           player.dy = 0;
+           player.onGround = false;
+           ui.score = 0;
+           ui.lives = INITIAL_LIVES;
+           ui.distance = 0;
+           gameSpeed = GAME_SPEED;
+           lastObstacleTime = 0;
+           lastCoinTime = 0;
+           obstacles.splice(0, obstacles.length);
+           coins.splice(0, coins.length);
+           loop();
+       }
+
+       loop();
+   </script>
+</body>
+</html>
